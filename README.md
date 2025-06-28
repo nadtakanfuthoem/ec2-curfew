@@ -1,7 +1,6 @@
 # ec2-curfew
 
-**Automatically start and stop EC2 instances on a schedule using AWS Lambda, EventBridge, DynamoDB, and SNS.**  
-Save costs by powering EC2 instances on/off based on tags and scheduled rules.
+**Save costs by powering EC2 instances on/off based on tags and scheduled rules.**
 
 ---
 
