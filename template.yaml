@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ec2-curfew 
+
+  Start and stop EC2 instances on a schedule using AWS Lambda.
+  
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  Ec2CurfewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambdaHandler
+      Description: 'Start and stop EC2 instances on a schedule using AWS Lambda.'
+      Runtime: nodejs22.x
+      CodeUri: ./src/
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ec2:DescribeInstances
+                - ec2:StartInstances
+                - ec2:StopInstances
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Ec2CurfewLogs}
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref Ec2CurfewSNSTopic
+      Environment:
+        Variables:
+          MODE: start # default, can be overridden by EventBridge event
+          LOG_TABLE_NAME: Ec2CurfewLogs
+          SNS_TOPIC_ARN: !Ref Ec2CurfewSNSTopic
+      Events:
+        StartSchedule:
+          Type: Schedule
+          Properties:
+            Name: Ec2CurfewStartSchedule
+            Schedule: cron(0 8 * * ? *) # 8 AM UTC every day
+            Input: '{"mode":"start"}'
+        StopSchedule:
+          Type: Schedule
+          Properties:
+            Name: Ec2CurfewStopSchedule
+            Schedule: cron(0 20 * * ? *) # 8 PM UTC every day
+            Input: '{"mode":"stop"}'
+
+  Ec2CurfewLogs:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Ec2CurfewLogs
+      AttributeDefinitions:
+        - AttributeName: LogId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LogId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  Ec2CurfewSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: ec2-curfew-notification
+
+  Ec2CurfewSNSEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref Ec2CurfewSNSTopic
+      Protocol: email
+      Endpoint: youremail@example.com # <-- Change this to your email address
